@@ -140,16 +140,42 @@ function AconfCompileOutput() {
 
 	local found=n
 	local file
+	local saw_unsorted=n
+	local files_after_unsorted=()
 	for file in "$config_dir"/*.sh
 	do
 		if [[ -e "$file" ]]
 		then
+			if [[ $saw_unsorted == y ]]
+			then
+				files_after_unsorted+=("$file")
+			fi
+			if [[ "$(basename -- "$file")" == 99-unsorted.sh ]]
+			then
+				saw_unsorted=y
+			fi
 			LogEnter 'Sourcing %s...\n' "$(Color C "%q" "$file")"
 			# shellcheck source=/dev/null
 			source "$file"
 			found=y
 			LogLeave ''
 		fi
+	done
+
+	local f
+	for f in "${files_after_unsorted[@]}"
+	do
+		ConfigWarning \
+			'%s is sourced after %s. '\
+'aconfmgr save appends entries to %s, which is intended to sort last '\
+'but does not ('\''9'\'' sorts before letters in ASCII byte ordering). '\
+'When the same path appears in both files, the later-sourced file may fail with '\
+'errors like "File exists". Rename %s so it sorts before %s.\n' \
+			"$(Color C "%q" "$f")" \
+			"$(Color C "99-unsorted.sh")" \
+			"$(Color C "99-unsorted.sh")" \
+			"$(Color C "%q" "$f")" \
+			"$(Color C "99-unsorted.sh")"
 	done
 
 	if $lint_config
